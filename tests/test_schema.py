@@ -44,7 +44,3 @@ def test_negative_target_is_rejected() -> None:
     frame.loc[1, "cnt"] = -5
     with pytest.raises(SchemaErrors):
         validate_raw(frame)
-
-
-def test_intentional_failure():
-    assert 1 == 2, 'Intentionally failing test for CI pipeline test'
