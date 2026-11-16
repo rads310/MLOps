@@ -1,13 +1,18 @@
 from __future__ import annotations
+
 from pathlib import Path
-import joblib, pandas as pd
+
+import joblib
+import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+
 from src import tracking
 from src.utils import ensure_parent, get_logger, load_params, set_seed
 
 log = get_logger("train")
 FEATURES = Path("data/features/train.csv")
 MODEL_OUT = Path("models/model.joblib")
+
 
 def make_model(train_params: dict):
     name = train_params["model"]
@@ -30,6 +35,7 @@ def make_model(train_params: dict):
         )
     raise ValueError(f"неизвестная модель: {name}")
 
+
 def main() -> None:
     params = load_params()
     train_params = params["train"]
@@ -49,6 +55,7 @@ def main() -> None:
     joblib.dump(bundle, ensure_parent(MODEL_OUT))
     tracking.log_model(model, list(x_train.columns), x_train.head(50))
     log.info("обучено: %s -> %s", train_params["model"], MODEL_OUT)
+
 
 if __name__ == "__main__":
     main()

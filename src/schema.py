@@ -1,25 +1,33 @@
+"""Схема исходных данных. Проверка выполняется до любой обработки."""
+
 from __future__ import annotations
-import pandera as pa, pandas as pd
 
-_raw_schema = pa.DataFrameSchema({
-    "instant": pa.Column(int, nullable=False),
-    "dteday": pa.Column(pa.DateTime, nullable=False),
-    "season": pa.Column(int, pa.Check.isin([1, 2, 3, 4])),
-    "yr": pa.Column(int, pa.Check.isin([0, 1])),
-    "mnth": pa.Column(int, pa.Check.between(1, 12)),
-    "hr": pa.Column(int, pa.Check.between(0, 23)),
-    "holiday": pa.Column(int, pa.Check.isin([0, 1])),
-    "weekday": pa.Column(int, pa.Check.between(0, 6)),
-    "workingday": pa.Column(int, pa.Check.isin([0, 1])),
-    "weathersit": pa.Column(int, pa.Check.between(1, 4)),
-    "temp": pa.Column(float, pa.Check.between(0, 1)),
-    "atemp": pa.Column(float, pa.Check.between(0, 1)),
-    "hum": pa.Column(float, pa.Check.between(0, 1)),
-    "windspeed": pa.Column(float, pa.Check.between(0, 1)),
-    "casual": pa.Column(int, nullable=False),
-    "registered": pa.Column(int, nullable=False),
-    "cnt": pa.Column(int, pa.Check.ge(0), nullable=False),
-}, coerce=True)
+import pandera.pandas as pa
+from pandera.pandas import Check, Column, DataFrameSchema
 
-def validate_raw(frame: pd.DataFrame) -> pd.DataFrame:
-    return _raw_schema.validate(frame)
+RAW_SCHEMA = DataFrameSchema(
+    {
+        "dteday": Column(pa.DateTime, nullable=False),
+        "hr": Column(int, Check.in_range(0, 23), nullable=False),
+        "season": Column(int, Check.in_range(1, 4), nullable=False),
+        "yr": Column(int, Check.in_range(0, 1), nullable=False),
+        "mnth": Column(int, Check.in_range(1, 12), nullable=False),
+        "holiday": Column(int, Check.isin([0, 1]), nullable=False),
+        "weekday": Column(int, Check.in_range(0, 6), nullable=False),
+        "workingday": Column(int, Check.isin([0, 1]), nullable=False),
+        "weathersit": Column(int, Check.in_range(1, 4), nullable=False),
+        "temp": Column(float, Check.in_range(0.0, 1.0), nullable=False),
+        "atemp": Column(float, Check.in_range(0.0, 1.0), nullable=False),
+        "hum": Column(float, Check.in_range(0.0, 1.0), nullable=False),
+        "windspeed": Column(float, Check.in_range(0.0, 1.0), nullable=False),
+        "cnt": Column(int, Check.greater_than_or_equal_to(0), nullable=False),
+    },
+    strict=False,
+    coerce=True,
+    name="raw_hourly",
+)
+
+
+def validate_raw(frame):
+    """Проверяет таблицу целиком и собирает все нарушения (lazy=True)."""
+    return RAW_SCHEMA.validate(frame, lazy=True)

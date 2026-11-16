@@ -1,9 +1,14 @@
 from __future__ import annotations
-import argparse, pandas as pd
+
+import argparse
 from pathlib import Path
+
+import pandas as pd
+
 from src.utils import ensure_parent, get_logger, load_params
 
 log = get_logger("ingest")
+
 
 def main() -> None:
     params = load_params()
@@ -21,7 +26,10 @@ def main() -> None:
     if args.from_year is not None:
         sliced = sliced[years >= args.from_year]
     sliced.to_csv(ensure_parent(args.out), index=False)
-    log.info("выгрузка до %d года: %d строк -> %s", args.until_year, len(sliced), args.out)
+    log.info(
+        "выгрузка до %d года: %d строк -> %s", args.until_year, len(sliced), args.out
+    )
+
 
 if __name__ == "__main__":
     main()

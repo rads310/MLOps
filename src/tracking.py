@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Any
@@ -6,13 +7,16 @@ from typing import Any
 RUN_ID_FILE = Path("reports/run_id.txt")
 MODEL_URI_FILE = Path("reports/model_uri.txt")
 
+
 def enabled() -> bool:
     return bool(os.environ.get("MLFLOW_TRACKING_URI"))
+
 
 def start_run(experiment: str, params: dict[str, Any]):
     if not enabled():
         return None
     import mlflow
+
     mlflow.set_experiment(experiment)
     run = mlflow.start_run()
     mlflow.log_params(params)
@@ -20,18 +24,24 @@ def start_run(experiment: str, params: dict[str, Any]):
     RUN_ID_FILE.write_text(run.info.run_id, encoding="utf-8")
     return run
 
+
 def log_metrics(metrics: dict[str, float]) -> None:
     if not enabled() or not RUN_ID_FILE.exists():
         return
     import mlflow
+
     run_id = RUN_ID_FILE.read_text(encoding="utf-8").strip()
     with mlflow.start_run(run_id=run_id):
         mlflow.log_metrics(metrics)
 
+
 def log_model(model, features: list[str], example) -> None:
     if not enabled():
         return
-    import cloudpickle, mlflow, pandas, sklearn
+    import cloudpickle
+    import mlflow
+    import pandas
+    import sklearn
     from mlflow.models import infer_signature
 
     signature = infer_signature(example, model.predict(example))

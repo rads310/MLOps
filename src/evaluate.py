@@ -1,8 +1,14 @@
 from __future__ import annotations
-import json, sys
+
+import json
+import sys
 from pathlib import Path
-import joblib, numpy as np, pandas as pd
+
+import joblib
+import numpy as np
+import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
 from src import tracking
 from src.utils import ensure_parent, get_logger, load_params
 
@@ -11,6 +17,7 @@ FEATURES = Path("data/features/test.csv")
 MODEL = Path("models/model.joblib")
 METRICS_OUT = Path("reports/metrics.json")
 PLOT_OUT = Path("reports/plots/pred_vs_true.csv")
+
 
 def main() -> None:
     params = load_params()
@@ -43,6 +50,7 @@ def main() -> None:
     if metrics["r2"] < min_r2:
         log.error("R2 ниже порога")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
