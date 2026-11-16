@@ -1,0 +1,52 @@
+name: Переобучение по расписанию
+
+on:
+  schedule:
+    - cron: "23 2 * * 1"
+  workflow_dispatch:
+    inputs:
+      until_year:
+        description: "Граница выгрузки данных"
+        default: "2012"
+
+concurrency:
+  group: retrain
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
+      MLFLOW_TRACKING_URI: https://dagshub.com/rads310/MLOps.mlflow
+      MLFLOW_TRACKING_USERNAME: rads310
+      MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --frozen || uv pip install -e .
+      - name: Данные из хранилища
+        run: dvc pull
+      - name: Новая порция данных
+        run: python -m src.ingest --until-year ${{ inputs.until_year || 2012 }}
+      - name: Обучение на обновлённых данных
+        run: |
+          dvc add data/raw/hour.csv
+          dvc repro
+      - name: Кандидат в реестр
+        run: python -m src.registry register
+      - name: Сравнение с champion
+        run: python -m src.registry promote
+      - name: Данные и артефакты в хранилище
+        run: dvc push
+      - name: Зафиксировать версию в репозитории
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dvc.lock data/raw/hour.csv.dvc reports/metrics.json
+          git diff --staged --quiet || git commit -m "переобучение $(date -u +%F)"
+          git push

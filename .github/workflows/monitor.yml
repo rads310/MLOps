@@ -1,0 +1,85 @@
+name: Мониторинг данных и качества
+
+on:
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pages: write
+  id-token: write
+
+jobs:
+  report:
+    name: Отчёт о дрейфе
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.check.outputs.status }}
+      summary: ${{ steps.check.outputs.summary }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --frozen || uv pip install -e .
+      - name: Данные и модель из хранилища
+        run: dvc pull
+      - name: Порция данных за новый период
+        run: python -m src.ingest --from-year 2012 --until-year 2012 --out data/stream/2012.csv
+      - name: Отчёт Evidently
+        run: python -m src.monitor --current data/stream/2012.csv
+      - name: Разбор сводки
+        id: check
+        run: |
+          report=reports/drift.json
+          status=$(jq -r .status "$report")
+          summary=$(jq -r '.reasons | join("; ")' "$report")
+          [ -n "$summary" ] || summary="отклонений нет"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+          echo "### Мониторинг: $status — $summary" >> "$GITHUB_STEP_SUMMARY"
+      - name: Страница отчёта
+        run: |
+          mkdir -p site
+          cp reports/drift.html site/index.html
+          cp reports/drift.json site/drift.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publish:
+    name: Публикация на GitHub Pages
+    needs: report
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  alert:
+    name: Задача при отклонении
+    needs: [report, publish]
+    if: needs.report.outputs.status == 'alert'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = ${{ toJSON(needs.report.outputs.summary) }};
+            const { owner, repo } = context.repo;
+            const day = new Date().toISOString().slice(0, 10);
+            const page = `https://${owner}.github.io/${repo}/`;
+            const run = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner, repo,
+              title: `Мониторинг: отклонение ${day}`,
+              labels: ['мониторинг'],
+              body: [`Мониторинг обнаружил отклонение: ${summary}.`, '', `Отчёт: ${page}`, `Запуск: ${run}`].join('
+'),
+            });
