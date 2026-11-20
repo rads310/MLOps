@@ -1,11 +1,15 @@
 """Мониторинг: дрейф признаков и качество модели на новой порции данных."""
+
 from __future__ import annotations
+
 import argparse
 import json
 from pathlib import Path
+
 import joblib
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, r2_score
+
 from src.predict import MODEL_FILE, prepare_features
 from src.utils import ensure_parent, get_logger, load_params
 
@@ -14,7 +18,10 @@ REFERENCE = Path("data/features/train.csv")
 HTML_OUT = Path("reports/drift.html")
 JSON_OUT = Path("reports/drift.json")
 
-def drift_report(reference: pd.DataFrame, current: pd.DataFrame, html_out: Path) -> dict:
+
+def drift_report(
+    reference: pd.DataFrame, current: pd.DataFrame, html_out: Path
+) -> dict:
     from evidently import DataDefinition, Dataset, Report
     from evidently.presets import DataDriftPreset
 
@@ -37,6 +44,7 @@ def drift_report(reference: pd.DataFrame, current: pd.DataFrame, html_out: Path)
             summary["columns"][column] = round(float(value), 6)
     summary["n_features"] = len(columns)
     return summary
+
 
 def main() -> None:
     params = load_params()
@@ -70,21 +78,34 @@ def main() -> None:
 
     reasons = []
     if report["share"] > float(monitor_params["drift_share_threshold"]):
-        reasons.append(f"дрейф: {report['share']:.0%} признаков при пороге {float(monitor_params['drift_share_threshold']):.0%}")
-    if report["r2_stream"] is not None and report["r2_stream"] < float(monitor_params["min_r2_on_stream"]):
-        reasons.append(f"качество: R2 = {report['r2_stream']} ниже порога {monitor_params['min_r2_on_stream']}")
+        reasons.append(
+            f"дрейф: {report['share']:.0%} признаков при пороге {float(monitor_params['drift_share_threshold']):.0%}"
+        )
+    if report["r2_stream"] is not None and report["r2_stream"] < float(
+        monitor_params["min_r2_on_stream"]
+    ):
+        reasons.append(
+            f"качество: R2 = {report['r2_stream']} ниже порога {monitor_params['min_r2_on_stream']}"
+        )
 
     report["status"] = "alert" if reasons else "ok"
     report["reasons"] = reasons
     report["n_rows"] = int(len(raw_current))
-    ensure_parent(args.json_out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    ensure_parent(args.json_out).write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     log.info("дрейф: %s из %s признаков", report["drifted"], report["n_features"])
-    log.info("качество на потоке: R2 = %s, MAE = %s", report["r2_stream"], report["mae_stream"])
+    log.info(
+        "качество на потоке: R2 = %s, MAE = %s",
+        report["r2_stream"],
+        report["mae_stream"],
+    )
     log.info("статус: %s %s", report["status"], "; ".join(reasons))
 
     if args.fail_on_alert and report["status"] == "alert":
         raise SystemExit(1)
+
 
 if __name__ == "__main__":
     main()
