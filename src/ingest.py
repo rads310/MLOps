@@ -1,45 +1,40 @@
+"""Имитация выгрузки данных из источника."""
+from __future__ import annotations
+
 import argparse
-import urllib.request
-import zipfile
 from pathlib import Path
 
 import pandas as pd
 
-from src.utils import ensure_parent, get_logger
+from src.utils import ensure_parent, get_logger, load_params
 
 log = get_logger("ingest")
-DATA_URL = "https://archive.ics.uci.edu/static/public/275/bike+sharing+dataset.zip"
 
 
-def download_raw(target_path: Path):
-    if not target_path.exists():
-        ensure_parent(target_path)
-        zip_path = target_path.parent / "bike.zip"
-        urllib.request.urlretrieve(DATA_URL, zip_path)
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extract("hour.csv", target_path.parent)
-        zip_path.unlink(missing_ok=True)
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--from-year", type=int, default=2011)
-    parser.add_argument("--until-year", type=int, default=2012)
-    parser.add_argument("--out", type=Path, default=Path("data/raw/hour.csv"))
+def main() -> None:
+    params = load_params()
+    ingest = params["ingest"]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--until-year", type=int, default=ingest["until_year"])
+    parser.add_argument("--from-year", type=int, default=None)
+    parser.add_argument("--source", type=Path, default=Path(ingest["source"]))
+    parser.add_argument("--out", type=Path, default=Path(params["data"]["raw"]))
     args = parser.parse_args()
 
-    download_raw(Path("data/raw/hour.csv"))
-    df = pd.read_csv("data/raw/hour.csv", parse_dates=["dteday"])
-    df_filtered = df[
-        (df["dteday"].dt.year >= args.from_year)
-        & (df["dteday"].dt.year <= args.until_year)
-    ]
-    df_filtered.to_csv(ensure_parent(args.out), index=False)
+    source = pd.read_csv(args.source, parse_dates=["dteday"])
+    years = source["dteday"].dt.year
+    sliced = source[years <= args.until_year]
+    if args.from_year is not None:
+        sliced = sliced[years >= args.from_year]
+    if sliced.empty:
+        raise ValueError(f"нет записей до {args.until_year} года включительно")
+
+    sliced.to_csv(ensure_parent(args.out), index=False)
     log.info(
-        "выгрузка %d—%d: %d строк -> %s",
-        args.from_year,
+        "выгрузка %s—%d: %d строк -> %s",
+        args.from_year or "начало",
         args.until_year,
-        len(df_filtered),
+        len(sliced),
         args.out,
     )
 

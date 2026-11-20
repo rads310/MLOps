@@ -6,3 +6,5 @@ __pycache__/
 data/external/
 
 data/external/
+__pycache__/
+*.pyc
